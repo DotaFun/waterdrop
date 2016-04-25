@@ -2,10 +2,10 @@
 class WaterDrop extends Base
 {
 
-    private $revData;      // 客户端指令数据
+    private $revInfo;      // 客户端指令数据
     private $socket;
-    private $resData;      // 返回客户端数据
-    private $userData;     //玩家(水滴)数据
+    private $resInfo;      // 返回客户端数据
+    private $userInfo;     //玩家(水滴)数据
     private $lasTime;      // 上次返回数据时间(ms)
     private $dropTypeList = [
         'red',
@@ -58,9 +58,9 @@ class WaterDrop extends Base
     public function run() {
         while(true) {
             // 从共享内存获取数据，使用信号量保证原子操作
-            $getData = $this->readShare();
-            if ($getData) { 
-                $this->revData = $getData;
+            $getInfo = $this->readShare();
+            if ($getInfo) { 
+                $this->revInfo = $getInfo;
                 $this->writeShare(self::CLEAR_SHARE);
             }
 
@@ -83,8 +83,8 @@ class WaterDrop extends Base
 
             // TODO compute and send
             $mapInfo = $this->getUserMapInfo();
-            foreach ($this->userData as $userId => $user) {
-                $resData[$userId] = array(
+            foreach ($this->userInfo as $userId => $user) {
+                $resInfo[$userId] = array(
                         'user_info' => array(
                             'towards' => $user['towards'],
                             'speed'   => self::CONF_DROP_SPEED,
@@ -102,7 +102,7 @@ class WaterDrop extends Base
             $this->updateUserInfo();
 
             $this->send();
-            $this->revData = [];
+            $this->revInfo = [];
         }
 
         if ($timeDiff >= self::CONF_MEAT_REFRESH_TIME) {
@@ -177,16 +177,16 @@ class WaterDrop extends Base
         foreach ($this->eatRecord as $userId => $record) {
             switch ($record) {
                 case self::EAT_DROP_SUCCESS :
-                    $this->userData[$userId] += self::EAT_DROP_SUCCESS_POWER;
+                    $this->userInfo[$userId] += self::EAT_DROP_SUCCESS_POWER;
                     break;
                 case self::EAT_DROP_FAILED :
-                    $this->userData[$userId] -= self::EAT_DROP_FAILED_POWER;
-                    if ($this->userData[$userId] <= 0) {
-                        $this->initDropData($userId);
+                    $this->userInfo[$userId] -= self::EAT_DROP_FAILED_POWER;
+                    if ($this->userInfo[$userId] <= 0) {
+                        $this->initDropInfo($userId);
                     }
                     break;
                 case self::EAT_MEAT_FAILED :
-                    $this->userData[$userId] += self::EAT_MEAT_SUCCESS_POWER;
+                    $this->userInfo[$userId] += self::EAT_MEAT_SUCCESS_POWER;
                     break;
                 default :
                     break;
@@ -195,7 +195,7 @@ class WaterDrop extends Base
         $this->eatRecord = [];
 
         // 更新水滴坐标和方向
-        foreach ($this->userData as &$user) {
+        foreach ($this->userInfo as &$user) {
             $order = $user['order'];
             if (!$order) {
                 continue;
@@ -260,10 +260,10 @@ class WaterDrop extends Base
      * @ return bool
      **/
     private function getEatResult($mainId, $id) {
-        $isMaster = $this->checkMaster($this->userData[$mainId]['color'], $this->userData[$id]['color']); 
+        $isMaster = $this->checkMaster($this->userInfo[$mainId]['color'], $this->userInfo[$id]['color']); 
 
-        if ($isMaster && $this->userData[$mainId]['power'] * 2 > $this->userData[$Id]['power'] 
-                || $this->userData[$mainId]['power'] >= $this->userData[$id]['power'] * 2) {
+        if ($isMaster && $this->userInfo[$mainId]['power'] * 2 > $this->userInfo[$Id]['power'] 
+                || $this->userInfo[$mainId]['power'] >= $this->userInfo[$id]['power'] * 2) {
             return self::EAT_DROP_SUCCESS;
         } else {
             return self::EAT_DROP_FAILED;
@@ -279,10 +279,10 @@ class WaterDrop extends Base
         $res = [];
         foreach ($this->meatList as $meat) {
             $distance = $this->getDistance(
-                    $this->userData[$userId]['x'], $this->userData[$userId]['y'],
+                    $this->userInfo[$userId]['x'], $this->userInfo[$userId]['y'],
                     $meat['x'], $meat['y']);
 
-            if ($distance <= $this->userData[$userId]['radius']) {
+            if ($distance <= $this->userInfo[$userId]['radius']) {
                 $this->eatRecord[$mainId] = self::EAT_MEAT_SUCCESS;
             }
 
@@ -300,12 +300,12 @@ class WaterDrop extends Base
      * @ return array
      **/
     private function getUserMapInfo() {
-        foreach ($this->userData as $mainId => $mainUser) {
+        foreach ($this->userInfo as $mainId => $mainUser) {
             $res[$mainId] = array(
                     'users' => [],
                     'meats' => $this->getUserMeatInfo($mainId),
                     );
-            foreach ($this->userData as $id => $user) {
+            foreach ($this->userInfo as $id => $user) {
                 if ($user['status'] == self::DROP_STATUS_LIVE && $mainId != $id) {
                     $distance = $this->getDistance(
                             $mainUser['x'], $mainUser['y'], 
@@ -335,21 +335,21 @@ class WaterDrop extends Base
      * @ return null
      **/
     private function synOrder() {
-        if (empty($this->revData)) {
+        if (empty($this->revInfo)) {
             return;
         }
-        switch ($this->revData['cmd']) {
+        switch ($this->revInfo['cmd']) {
             case self::ORDER_MOVE :
-                $this->userData[$this->revData['user_id']]['order'] = array(
-                        'time' => $this->revData['time'],
-                        'type' => $this->revData['type'],
-                        'x' => $this->revData['x'],
-                        'y' => $this->revData['y'],
+                $this->userInfo[$this->revInfo['user_id']]['order'] = array(
+                        'time' => $this->revInfo['time'],
+                        'type' => $this->revInfo['type'],
+                        'x' => $this->revInfo['x'],
+                        'y' => $this->revInfo['y'],
                         );
                 break;
             case self::ORDER_CONNECT :
-                if (!isset($this->userData[$this->revData['user_id']])) {
-                    $this->userData[$this->revData['user_id']] = $this->initUserData();
+                if (!isset($this->userInfo[$this->revInfo['user_id']])) {
+                    $this->userInfo[$this->revInfo['user_id']] = $this->initUserInfo();
                 }
                 break;
             default :
@@ -358,26 +358,26 @@ class WaterDrop extends Base
     }
 
     /**
-     * initUserData
+     * initUserInfo
      * 初始化水滴数据
      * @ return null
      **/
-    private function initUserData() {
+    private function initUserInfo() {
         $types = $this->dropTypeList;
         $exist = [];
 
-        if (count($this->userData) >= self::CONF_DROP_NUM) {
+        if (count($this->userInfo) >= self::CONF_DROP_NUM) {
             return;
         }
 
-        foreach ($this->userData as $user) {
+        foreach ($this->userInfo as $user) {
             if (in_array($user['color'], $types)) {
                 $exist[] = $user['color'];
             }
         }
         $res = array_diff($types, $exist);
 
-        $this->userData[$this->revData['user_id']] = array(
+        $this->userInfo[$this->revInfo['user_id']] = array(
                 'color'    => $res[0],
                 'x'        => rand(0, self::CONF_MAP_COORD_X),
                 'y'        => rand(0, self::CONF_MAP_COORD_Y),
@@ -396,7 +396,7 @@ class WaterDrop extends Base
      * @ return null
      **/
     private function send() {
-        $sendData = json_encode($this->resData);
-        socket_write($this->socket, $sendData, strlen($sendData));
+        $sendInfo = json_encode($this->resInfo);
+        socket_write($this->socket, $sendInfo, strlen($sendInfo));
     }
 }
