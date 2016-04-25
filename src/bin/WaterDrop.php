@@ -84,19 +84,19 @@ class WaterDrop extends Base
             // TODO compute and send
             $mapInfo = $this->getUserMapInfo();
             foreach ($this->userInfo as $userId => $user) {
-                $resInfo[$userId] = array(
-                        'user_info' => array(
-                            'towards' => $user['towards'],
-                            'speed'   => self::CONF_DROP_SPEED,
-                            'x'       => $newCoord['x'],
-                            'y'       => $newCoord['y'],
-                            'color'   => $user['color'],
-                            'power'   => $user['power'],
-                            'color'   => $user['color'],
-                            'status'  => $user['status'],
-                            ),
-                        'map_info'  => $this->mapInfo[$userId],
-                        );
+                $resInfo[$userId] = [
+                    'user_info' => [
+                        'towards' => $user['towards'],
+                        'speed'   => self::CONF_DROP_SPEED,
+                        'x'       => $newCoord['x'],
+                        'y'       => $newCoord['y'],
+                        'color'   => $user['color'],
+                        'power'   => $user['power'],
+                        'color'   => $user['color'],
+                        'status'  => $user['status'],
+                    ],
+                    'map_info'  => $mapInfo[$userInfo],
+                ];
             }
 
             $this->updateUserInfo();
@@ -125,7 +125,7 @@ class WaterDrop extends Base
                 }
             }
             foreach ($this->meatList as $meat) {
-                unset($map[$meat['x'].','.$meat['y']);
+                unset($map[$meat['x'].','.$meat['y']]);
             }
         }
 
@@ -133,10 +133,10 @@ class WaterDrop extends Base
 
         foreach ($randMap as $coord => $rand) {
             $arr = explode(',', $coord);
-            $this->meatList[] = array(
-                    'x' => $arr[0],
-                    'y' => $arr[1],
-                    );
+            $this->meatList[] = [
+                'x' => $arr[0],
+                'y' => $arr[1],
+            ];
         }
     }
 
@@ -160,10 +160,10 @@ class WaterDrop extends Base
         $randY = array_rand($mapY, self::CONF_MEAT_INIT_NUM);
 
         for ($i = 0; $i < self::CONF_MEAT_INIT_NUM; $i++) {
-            $this->meatList[] = array(
-                    'x' => $mapX[$i],
-                    'y' => $mapY[$i],
-                    );
+            $this->meatList[] = [
+                'x' => $mapX[$i],
+                'y' => $mapY[$i],
+            ];
         }
     }
 
@@ -175,7 +175,7 @@ class WaterDrop extends Base
     private function updateUserInfo() {
         // 更新水滴状态
         foreach ($this->eatRecord as $userId => $record) {
-            switch ($record) {
+            switch ($record['status']) {
                 case self::EAT_DROP_SUCCESS :
                     $this->userInfo[$userId] += self::EAT_DROP_SUCCESS_POWER;
                     break;
@@ -185,8 +185,9 @@ class WaterDrop extends Base
                         $this->initDropInfo($userId);
                     }
                     break;
-                case self::EAT_MEAT_FAILED :
+                case self::EAT_MEAT_SUCCESS :
                     $this->userInfo[$userId] += self::EAT_MEAT_SUCCESS_POWER;
+                    unset($this->meatList[$record['enemyId']]);
                     break;
                 default :
                     break;
@@ -277,13 +278,16 @@ class WaterDrop extends Base
      **/
     private function getUserMeatInfo($userId) {
         $res = [];
-        foreach ($this->meatList as $meat) {
+        foreach ($this->meatList as $meatId => $meat) {
             $distance = $this->getDistance(
                     $this->userInfo[$userId]['x'], $this->userInfo[$userId]['y'],
                     $meat['x'], $meat['y']);
 
             if ($distance <= $this->userInfo[$userId]['radius']) {
-                $this->eatRecord[$mainId] = self::EAT_MEAT_SUCCESS;
+                $this->eatRecord[$mainId] = [
+                    'status' => self::EAT_MEAT_SUCCESS,
+                    'enemyId'  => $meatId,
+                ];
             }
 
             if ($distance < self::CONF_DROP_SPECTIVE) {
@@ -301,10 +305,10 @@ class WaterDrop extends Base
      **/
     private function getUserMapInfo() {
         foreach ($this->userInfo as $mainId => $mainUser) {
-            $res[$mainId] = array(
-                    'users' => [],
-                    'meats' => $this->getUserMeatInfo($mainId),
-                    );
+            $res[$mainId] = [
+                'users' => [],
+                'meats' => $this->getUserMeatInfo($mainId),
+            ];
             foreach ($this->userInfo as $id => $user) {
                 if ($user['status'] == self::DROP_STATUS_LIVE && $mainId != $id) {
                     $distance = $this->getDistance(
@@ -312,17 +316,20 @@ class WaterDrop extends Base
                             $user['x'], $user['y']);
                     // eat action
                     if ($distance <= $mainUser['radius']+$user['radius']) {
-                        $this->eatRecord[$mainId] = $this->getEatResult($mainId, $id);
+                        $this->eatRecord[$mainId] = [
+                            'status' => $this->getEatResult($mainId, $id),
+                            'enemyId'  => $id,
+                        ];
                     }
 
                     if ($distance <= self::CONF_DROP_SPECTIVE) {
-                        $res[$mainId]['users'][] = array(
-                                'user_id' => $user['id'],
-                                'color' => $user['color'],
-                                'power' => $user['power'],
-                                'x' => $user['x'],
-                                'y' => $user['y'],
-                                );
+                        $res[$mainId]['users'][] = [
+                            'user_id' => $user['id'],
+                            'color' => $user['color'],
+                            'power' => $user['power'],
+                            'x' => $user['x'],
+                            'y' => $user['y'],
+                        ];
                     }
                 }
             }
@@ -340,12 +347,12 @@ class WaterDrop extends Base
         }
         switch ($this->revInfo['cmd']) {
             case self::ORDER_MOVE :
-                $this->userInfo[$this->revInfo['user_id']]['order'] = array(
-                        'time' => $this->revInfo['time'],
-                        'type' => $this->revInfo['type'],
-                        'x' => $this->revInfo['x'],
-                        'y' => $this->revInfo['y'],
-                        );
+                $this->userInfo[$this->revInfo['user_id']]['order'] = [
+                    'time' => $this->revInfo['time'],
+                    'type' => $this->revInfo['type'],
+                    'x' => $this->revInfo['x'],
+                    'y' => $this->revInfo['y'],
+                ];
                 break;
             case self::ORDER_CONNECT :
                 if (!isset($this->userInfo[$this->revInfo['user_id']])) {
@@ -377,17 +384,17 @@ class WaterDrop extends Base
         }
         $res = array_diff($types, $exist);
 
-        $this->userInfo[$this->revInfo['user_id']] = array(
-                'color'    => $res[0],
-                'x'        => rand(0, self::CONF_MAP_COORD_X),
-                'y'        => rand(0, self::CONF_MAP_COORD_Y),
-                'power'    => self::CONF_DROP_POWER,
-                'towards'  => self::CONF_DROP_TOWARDS,
-                'speed'    => self::CONF_DROP_SPEED,
-                'radius'   => self::CONF_DROP_RADIUS,
-                'spective' => self::CONF_DROP_SPECTIVE,
-                'status'   => self::CONF_DROP_STATUS,
-                );
+        $this->userInfo[$this->revInfo['user_id']] = [
+            'color'    => $res[0],
+            'x'        => rand(0, self::CONF_MAP_COORD_X),
+            'y'        => rand(0, self::CONF_MAP_COORD_Y),
+            'power'    => self::CONF_DROP_POWER,
+            'towards'  => self::CONF_DROP_TOWARDS,
+            'speed'    => self::CONF_DROP_SPEED,
+            'radius'   => self::CONF_DROP_RADIUS,
+            'spective' => self::CONF_DROP_SPECTIVE,
+            'status'   => self::CONF_DROP_STATUS,
+        ];
     }
 
     /**
