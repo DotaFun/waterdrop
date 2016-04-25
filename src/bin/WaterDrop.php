@@ -146,15 +146,8 @@ class WaterDrop extends Base
      * @ return null
      **/
     private function initMeatMap() {
-        $x = 0;
-        $y = 0;
-        $map = [];
-        for ($x; $x < self::CONF_MAP_COORD_X; $x++) {
-            $mapX[] = $x;
-        }
-        for ($y; $y < self::CONF_MAP_COORD_Y; $y++) {
-            $mapY[] = $y;
-        }
+        $mapX = range(0, self::CONF_MAP_COORD_X);
+        $mapY = range(0, self::CONF_MAP_COORD_Y);
 
         $randX = array_rand($mapX, self::CONF_MEAT_INIT_NUM);
         $randY = array_rand($mapY, self::CONF_MEAT_INIT_NUM);
